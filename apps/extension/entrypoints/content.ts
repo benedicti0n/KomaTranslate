@@ -8,11 +8,13 @@ import {
 import {
   captureSourceImage,
   computeSourceToViewportMapping,
+  decodeImage,
   decodeImageCorsAware,
   estimateImageMemoryBytes,
   sourceRectToViewportRect,
   releaseDecodedImage,
   resizeNormalize,
+  type DecodedImage,
 } from '@manga-translator/inference-core';
 import { createReaderSession, type PageCandidate } from '@manga-translator/reader-core';
 import {
@@ -22,6 +24,8 @@ import {
   removeDiagnosticOverlay,
 } from '@manga-translator/overlay-core';
 import { onBroadcast, sendMessage } from '../utils/messaging.js';
+
+const pendingImagePermissionRequests = new Set<string>();
 
 const log = (...args: unknown[]): void => {
   // eslint-disable-next-line no-console
@@ -124,6 +128,50 @@ const renderQueueOverlay = (): void => {
   cleanupOverlay = renderMockBubbleOverlay({ candidates: bubbles });
 };
 
+const getImageOrigin = (url: string): string | null => {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Attempts to fetch a cross-origin image through the background service worker,
+ * which can read the response when the extension has host permission for the
+ * image origin even if the CDN does not send CORS headers.
+ */
+const fetchImageThroughBackground = async (
+  source: string,
+  abortSignal: AbortSignal,
+): Promise<Blob | null> => {
+  const imageOrigin = getImageOrigin(source);
+  if (!imageOrigin) return null;
+
+  if (!pendingImagePermissionRequests.has(imageOrigin)) {
+    pendingImagePermissionRequests.add(imageOrigin);
+    const permissionResult = await sendMessage('content:requestImageOriginPermission', {
+      imageOrigin,
+    });
+    pendingImagePermissionRequests.delete(imageOrigin);
+
+    if (!permissionResult.ok || !permissionResult.value.granted) {
+      log('Image origin permission denied or failed', imageOrigin);
+      return null;
+    }
+  }
+
+  if (abortSignal.aborted) return null;
+
+  const fetchResult = await sendMessage('content:fetchImageBlob', { url: source });
+  if (!fetchResult.ok) {
+    log('Background image fetch failed', source, fetchResult.error);
+    return null;
+  }
+
+  return new Blob([fetchResult.value.buffer]);
+};
+
 const createSession = (): ReturnType<typeof createReaderSession> => {
   const session = createReaderSession({
     direction: 'vertical',
@@ -133,56 +181,76 @@ const createSession = (): ReturnType<typeof createReaderSession> => {
         throw new Error('Source element not found');
       }
 
-      // Try a CORS-aware decode so we can read pixels. If the image CDN does not
-      // send CORS headers, fall back to overlay-only rendering for this page.
-      const decoded = await decodeImageCorsAware(job.candidate.source);
-      if (!decoded) {
-        corsBlockedFingerprints.add(job.candidate.fingerprint);
-        log(
-          `P${job.priority} CORS-blocked, overlay only`,
-          job.candidate.fingerprint,
-        );
-        return {
-          candidate: job.candidate,
-          priority: job.priority,
-          durationMs: 0,
-        };
+      const captureDecoded = async (
+        decoded: DecodedImage,
+      ): Promise<{ candidate: PageCandidate; priority: 0 | 1 | 2; durationMs: number }> => {
+        try {
+          const imageData = captureSourceImage(decoded);
+          const normalized = resizeNormalize(imageData, {
+            targetWidth: 640,
+            targetHeight: 640,
+            channels: 3,
+            normalize: true,
+            preserveAspect: true,
+          });
+
+          const memoryEstimate = estimateImageMemoryBytes(
+            decoded.naturalWidth,
+            decoded.naturalHeight,
+          );
+          log(
+            `P${job.priority} captured`,
+            job.candidate.fingerprint,
+            `${decoded.naturalWidth}x${decoded.naturalHeight}`,
+            `~${Math.round(memoryEstimate / 1024 / 1024)}MB`,
+          );
+
+          void normalized;
+
+          return {
+            candidate: job.candidate,
+            priority: job.priority,
+            durationMs: 0,
+          };
+        } finally {
+          releaseDecodedImage(decoded);
+        }
+      };
+
+      // Try a CORS-aware decode so we can read pixels. This works when the CDN
+      // sends CORS headers.
+      const corsDecoded = await decodeImageCorsAware(job.candidate.source);
+      if (corsDecoded) {
+        return await captureDecoded(corsDecoded);
       }
 
-      try {
-        const imageData = captureSourceImage(decoded);
-        const normalized = resizeNormalize(imageData, {
-          targetWidth: 640,
-          targetHeight: 640,
-          channels: 3,
-          normalize: true,
-          preserveAspect: true,
-        });
-
-        // Phase 2: we capture and normalize the image. In Phase 3 the normalized
-        // tensor will be passed to a text-detection / OCR model.
-        const memoryEstimate = estimateImageMemoryBytes(
-          decoded.naturalWidth,
-          decoded.naturalHeight,
-        );
-        log(
-          `P${job.priority} captured`,
-          job.candidate.fingerprint,
-          `${decoded.naturalWidth}x${decoded.naturalHeight}`,
-          `~${Math.round(memoryEstimate / 1024 / 1024)}MB`,
-        );
-
-        // Prevent the unused variable from being tree-shaken / flagged.
-        void normalized;
-
-        return {
-          candidate: job.candidate,
-          priority: job.priority,
-          durationMs: 0,
-        };
-      } finally {
-        releaseDecodedImage(decoded);
+      // CORS failed. Try fetching the image through the background service
+      // worker, which can read cross-origin responses when granted host
+      // permission even without CDN CORS headers.
+      log(
+        `P${job.priority} trying background fetch`,
+        job.candidate.fingerprint,
+      );
+      const blob = await fetchImageThroughBackground(
+        job.candidate.source,
+        job.abortController.signal,
+      );
+      if (blob) {
+        const decoded = await decodeImage(blob);
+        return await captureDecoded(decoded);
       }
+
+      // If both paths fail, fall back to overlay-only rendering.
+      corsBlockedFingerprints.add(job.candidate.fingerprint);
+      log(
+        `P${job.priority} CORS-blocked, overlay only`,
+        job.candidate.fingerprint,
+      );
+      return {
+        candidate: job.candidate,
+        priority: job.priority,
+        durationMs: 0,
+      };
     },
     callbacks: {
       onJobStarted: (job) => {

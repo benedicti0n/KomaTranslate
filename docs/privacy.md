@@ -22,6 +22,7 @@ optionally, downloads of local models initiated by the user.
 | `storage` | Persist the list of sites enabled by the user and extension settings. |
 | `offscreen` | Create an offscreen document for long-running local inference in later phases. |
 | Optional host permissions (`*://*/*`) | Allow the content script to run on a specific manga-reader site only after the user explicitly enables it. These are requested per-site, never at install. |
+| Optional CDN origin permissions | When a reader loads page images from a separate CDN that does not send CORS headers, the extension may request optional host permission for that CDN origin so the background service worker can fetch the image bytes locally. |
 
 ## What is stored
 

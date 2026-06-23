@@ -130,6 +130,31 @@ The pipeline is designed to release resources eagerly:
 - `releaseDecodedImage()` is the explicit cleanup path.
 - `estimateImageMemoryBytes()` is used to log memory-sensitive events.
 
+### Handling cross-origin (CORS-blocked) images
+
+Many readers host page images on a separate CDN origin. If that CDN does not
+send `Access-Control-Allow-Origin`, the content script cannot draw the image to
+a canvas and read pixels. The fallback path is:
+
+```text
+content script detects CORS failure
+         |
+         v
+content:requestImageOriginPermission -> background
+         |
+         v
+chrome.permissions.request({ origins: ["https://cdn.example.com/*"] })
+         |
+         v
+content:fetchImageBlob -> background fetch -> ArrayBuffer
+         |
+         v
+content script decodes Blob -> captures pixels
+```
+
+If permission is denied or the background fetch fails, the page is rendered
+overlay-only and its fingerprint is marked complete so it is not retried.
+
 ## Overlay coordinate mapping
 
 Overlays are rendered into a closed Shadow DOM host element that is fixed at the

@@ -61,6 +61,14 @@ export interface ContentRequests {
     request: { origin: Origin };
     response: Result<SiteAuthorization>;
   };
+  'content:requestImageOriginPermission': {
+    request: { imageOrigin: Origin };
+    response: Result<{ granted: boolean }>;
+  };
+  'content:fetchImageBlob': {
+    request: { url: string };
+    response: Result<{ buffer: ArrayBuffer }>;
+  };
 }
 
 export interface OffscreenRequests {

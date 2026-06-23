@@ -108,7 +108,10 @@ None.
 6. In Phase 2 the extension additionally decodes and captures the source
    image pixels for P0/P1/P2 pages, maps source coordinates to rendered
    viewport coordinates (including `object-fit`), and displays memory-aware
-   "Capturing…" / "Captured" overlays. Real OCR/translation begins in Phase 5.
+   "Capturing…" / "Captured" overlays. If the reader's image CDN does not
+   send CORS headers, the extension can request optional permission for the
+   CDN origin and fetch the image through the background service worker.
+   Real OCR/translation begins in Phase 5.
 7. The user can disable the site at any time from the popup or options page.
 
 ## Technical Notes

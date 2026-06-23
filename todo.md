@@ -228,6 +228,25 @@ Legend:
 - [x] Update `Features.md`, `docs/architecture.md`, `docs/testing.md`, `docs/decisions.md`.
 - [x] Commit and push Phase 2.
 
+### Post-Phase 2 bug fix — CORS-blocked image CDN
+
+- [x] Add `content:requestImageOriginPermission` and `content:fetchImageBlob`
+  message types.
+  - Verification: TypeScript compiles.
+- [x] Implement background handlers to request CDN host permission and fetch
+  image bytes.
+  - Verification: handlers return `ArrayBuffer` on success.
+- [x] Update content script to route CORS-blocked images through the background
+  service worker.
+  - Verification: no infinite retry loop; overlay-only fallback remains.
+- [x] Add `decodeImage` import and `DecodedImage` type usage in content script.
+- [x] Run `pnpm test`.
+  - Result: 55 tests passed.
+- [x] Run `pnpm typecheck` and `pnpm build`.
+  - Result: build succeeded, 237.48 kB.
+- [x] Update `Features.md`, `docs/privacy.md`, `docs/decisions.md`.
+- [x] Commit and push fix.
+
 ---
 
 ## Phase 3 — Text Detection and OCR Benchmark Spike

@@ -153,6 +153,40 @@ const handlers: BackgroundHandlerMap = {
     return Ok(await getSiteAuthorization(normalized));
   },
 
+  'content:requestImageOriginPermission': async ({ imageOrigin }) => {
+    const normalized = normalizeOrigin(imageOrigin);
+    if (!normalized) {
+      return Err('Invalid image origin');
+    }
+
+    const matchPattern = originToMatchPattern(normalized);
+    if (!matchPattern) {
+      return Err('Invalid match pattern');
+    }
+
+    try {
+      const granted = await chrome.permissions.request({ origins: [matchPattern] });
+      return Ok({ granted });
+    } catch (error) {
+      warn('Image origin permission request failed', error);
+      return Err(error instanceof Error ? error.message : String(error));
+    }
+  },
+
+  'content:fetchImageBlob': async ({ url }) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        return Err(`HTTP ${response.status}`);
+      }
+      const buffer = await response.arrayBuffer();
+      return Ok({ buffer });
+    } catch (error) {
+      warn('Image fetch failed', url, error);
+      return Err(error instanceof Error ? error.message : String(error));
+    }
+  },
+
   'offscreen:init': async () => {
     return Ok({ initialized: true });
   },

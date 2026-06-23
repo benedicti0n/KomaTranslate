@@ -125,6 +125,34 @@ stable fingerprints independently.
 
 ---
 
+## 2026-06-23 — Route non-CORS image fetches through the background service worker
+
+**Decision:** When a manga reader serves images from a CDN that does not send
+CORS headers, the content script requests optional host permission for the CDN
+origin and asks the background service worker to fetch the image bytes.
+
+**Reason:** Content scripts run in the page's origin and are bound by that
+site's CORS policy. The background service worker can read cross-origin
+responses for origins the user has granted host permission to, even when the
+server omits `Access-Control-Allow-Origin`. This lets us capture pixel data
+locally without bypassing DRM or altering server responses.
+
+**Alternatives considered:**
+
+- Use `declarativeNetRequest` to inject CORS headers — more invasive and may
+  break site functionality.
+- Always fall back to overlay-only on CORS failure — simpler but prevents OCR
+  and translation on many popular readers.
+- Pre-declare common manga CDN origins in the manifest — violates the
+  narrow-permission principle and requires frequent updates.
+
+**Consequences:** Users may see an additional permission prompt per CDN origin
+the first time it is encountered. If denied, the extension still renders
+overlay-only previews. No data is uploaded; the background fetch only moves
+bytes from the CDN to the local content script.
+
+---
+
 ## 2026-06-23 — Use the `canvas` npm package for jsdom unit tests
 
 **Decision:** Unit tests for the image pipeline use jsdom plus the `canvas`
