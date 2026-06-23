@@ -80,3 +80,18 @@ Phase 1 adds:
 - Reading-order sorting for vertical, LTR, and RTL directions.
 - P0/P1/P2 priority queue ordering, cancellation, and session-cache deduplication.
 - Fixture reader pages in `tests/fixtures/`.
+
+Phase 2 adds:
+
+- Image decode/capture source-to-viewport mapping (`fill`, `contain`, `cover`, `none`).
+- `resizeNormalize` and `cropImageData` utilities.
+- Memory lifecycle helpers and estimation.
+- `createMetricsRecorder` performance instrumentation.
+- Linear coordinate mapping and source-rect-to-viewport conversion in overlay-core.
+- Additional fixtures for object-fit, scaled/zoomed, and responsive/DPR layouts.
+
+### Test environment
+
+Unit tests run under jsdom with the `canvas` package providing a working HTML
+Canvas 2D context. `tests/setup.ts` exposes `ImageData` globally and polyfills
+`URL.createObjectURL` / `URL.revokeObjectURL` where needed.

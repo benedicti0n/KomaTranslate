@@ -35,19 +35,24 @@ All processing happens locally in the browser.
 - Mock translation bubble overlays rendered over P0/P1/P2 pages.
 - Fixture reader pages (vertical, paged, lazy-loaded) and automated tests.
 
+### Phase 2 — Image Pipeline and Page Capture
+
+- New `@manga-translator/inference-core` package for image pipeline.
+- Safe DOM image decoding with `decodeImage` and `withDecodedImage` lifecycle helpers.
+- Source-to-overlay coordinate mapping that accounts for `object-fit`,
+  `object-position`, and rendered size.
+- Source image and region capture to `ImageData`.
+- Resize, normalize, and crop utilities producing model-ready tensors.
+- Image memory lifecycle management (`releaseDecodedImage`, memory estimation).
+- Performance instrumentation with `createMetricsRecorder`.
+- Additional fixtures for object-fit, scaled/zoomed, and responsive/DPR layouts.
+- Unit tests for capture mapping, resize/normalize, crop, and memory utilities.
+
 ## In Progress
 
 None.
 
 ## Planned
-
-### Phase 2 — Image Pipeline and Page Capture
-
-- Safe DOM image decoding and normalization.
-- Source-to-overlay coordinate mapping.
-- Image memory lifecycle management.
-- Canvas/WebGL/blob reader fallback architecture.
-- Performance instrumentation.
 
 ### Phase 3 — OCR Benchmark Spike
 
@@ -100,9 +105,10 @@ None.
 3. Click the extension icon and choose **Enable automatic translation**.
 4. Chrome asks for permission for that specific site.
 5. The page reloads/injects the content script.
-6. In Phase 1 the extension discovers manga page images, tracks the current
-   page, and renders mock "P0/P1/P2" translation bubble overlays to prove the
-   discovery and queue ordering. Real OCR/translation begins in Phase 5.
+6. In Phase 2 the extension additionally decodes and captures the source
+   image pixels for P0/P1/P2 pages, maps source coordinates to rendered
+   viewport coordinates (including `object-fit`), and displays memory-aware
+   "Capturing…" / "Captured" overlays. Real OCR/translation begins in Phase 5.
 7. The user can disable the site at any time from the popup or options page.
 
 ## Technical Notes

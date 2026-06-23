@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Responsive / DPR Reader Fixture</title>
+    <style>
+      body {
+        margin: 0;
+        background: #111;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 2rem 0;
+      }
+      picture, img {
+        width: 80vw;
+        max-width: 800px;
+        height: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <picture>
+      <source
+        media="(min-width: 800px)"
+        srcset="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='1200'%3E%3Crect width='800' height='1200' fill='%23f5f5f5'/%3E%3Ctext x='400' y='600' text-anchor='middle' font-size='40' fill='%23333'%3EDesktop Page 1%3C/text%3E%3C/svg%3E 1x"
+      />
+      <img
+        src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='600'%3E%3Crect width='400' height='600' fill='%23f5f5f5'/%3E%3Ctext x='200' y='300' text-anchor='middle' font-size='25' fill='%23333'%3EMobile Page 1%3C/text%3E%3C/svg%3E"
+        srcset="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='600'%3E%3Crect width='400' height='600' fill='%23f5f5f5'/%3E%3Ctext x='200' y='300' text-anchor='middle' font-size='25' fill='%23333'%3EMobile Page 1%3C/text%3E%3C/svg%3E 1x, data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='1200'%3E%3Crect width='800' height='1200' fill='%23f5f5f5'/%3E%3Ctext x='400' y='600' text-anchor='middle' font-size='40' fill='%23333'%3EDesktop Page 1%3C/text%3E%3C/svg%3E 2x"
+        sizes="80vw"
+        alt="Page 1"
+      />
+    </picture>
+  </body>
+</html>

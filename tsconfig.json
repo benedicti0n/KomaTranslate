@@ -33,6 +33,7 @@
     "paths": {
       "@manga-translator/reader-core": ["packages/reader-core/src/index.ts"],
       "@manga-translator/overlay-core": ["packages/overlay-core/src/index.ts"],
+      "@manga-translator/inference-core": ["packages/inference-core/src/index.ts"],
       "@manga-translator/shared": ["packages/shared/src/index.ts"]
     }
   },

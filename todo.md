@@ -166,13 +166,67 @@ Legend:
 
 ## Phase 2 — Image Pipeline and Real Page Capture
 
-- [ ] Implement safe DOM image decoding.
-- [ ] Implement coordinate mapping from source pixels to rendered pixels.
-- [ ] Implement resize/normalize/crop utilities.
-- [ ] Implement image memory lifecycle management.
-- [ ] Define fallback capture architecture for canvas/WebGL/blob readers.
-- [ ] Add fixtures for zoom, DPR, scaling, and responsive layouts.
-- [ ] Add performance instrumentation.
+### Package setup
+
+- [x] Create `@manga-translator/inference-core` package.
+  - Verification: imported by extension and builds.
+
+### Decode and capture
+
+- [x] Implement `decodeImage` for `HTMLImageElement`, URL strings, and Blobs.
+  - Verification: unit tests where possible; used by content script.
+- [x] Implement `withDecodedImage` for automatic cleanup.
+  - Verification: resources released after callback.
+- [x] Implement `getRenderedImageRect` and source-to-viewport mapping.
+  - Verification: unit tests for fill, contain, cover, none.
+- [x] Implement `captureSourceImage` and `captureSourceRegion` to ImageData.
+  - Verification: called by content script processJob.
+
+### Resize, normalize, crop
+
+- [x] Implement `resizeNormalize` producing CHW Float32Array.
+  - Verification: unit tests for dimensions, normalization, array length.
+- [x] Implement `cropImageData`.
+  - Verification: unit test for crop rect.
+
+### Memory and performance
+
+- [x] Implement `releaseDecodedImage`, `releaseDecodedImages`.
+  - Verification: unit tests pass.
+- [x] Implement `estimateImageMemoryBytes`.
+  - Verification: unit tests pass.
+- [x] Implement `createMetricsRecorder`.
+  - Verification: used by decode/capture functions.
+
+### Coordinate mapping overlays
+
+- [x] Implement `createLinearMapping` and `mapSourceRectToViewport` in overlay-core.
+  - Verification: unit tests pass.
+- [x] Update content script to compute current rendered rect using
+  `computeSourceToViewportMapping`.
+  - Verification: overlay bubbles align with scaled/object-fit images.
+
+### Fixtures
+
+- [x] Create `objectFitReader.html` fixture.
+- [x] Create `scaledReader.html` (zoom/transform) fixture.
+- [x] Create `responsiveReader.html` (srcset/sizes/DPR) fixture.
+
+### Tests and verification
+
+- [x] Add `tests/setup.ts` with canvas/jsdom polyfills.
+- [x] Add inference-core unit tests.
+  - Result: capture, resizeNormalize, memory tests pass.
+- [x] Add overlay-core coordinate mapping tests.
+  - Result: tests pass.
+- [x] Run `pnpm test`.
+  - Result: 53 tests passed.
+- [x] Run `pnpm typecheck`.
+  - Result: no errors.
+- [x] Run `pnpm build`.
+  - Result: WXT build succeeded, 235.36 kB.
+- [x] Update `Features.md`, `docs/architecture.md`, `docs/testing.md`, `docs/decisions.md`.
+- [x] Commit and push Phase 2.
 
 ---
 

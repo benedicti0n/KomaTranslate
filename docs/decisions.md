@@ -122,3 +122,27 @@ jobs while still deduplicating the same page asset in the session cache.
 **Consequences:** The adapter must mark elements and the tracker must query by
 `data-manga-translator-id`. Future adapters must produce unique element IDs and
 stable fingerprints independently.
+
+---
+
+## 2026-06-23 — Use the `canvas` npm package for jsdom unit tests
+
+**Decision:** Unit tests for the image pipeline use jsdom plus the `canvas`
+npm package to provide a real HTML Canvas 2D context and `ImageData`.
+
+**Reason:** jsdom does not implement Canvas 2D context or `ImageData` on its
+own. The image pipeline's resize, crop, and capture functions depend on these
+APIs. Using `canvas` lets us test the actual implementation rather than
+maintaining separate test-only pure-JS fallbacks.
+
+**Alternatives considered:**
+
+- Maintain a pure-JS resize implementation for tests — duplicates logic and
+  risks divergence from browser behavior.
+- Use Playwright for all image-pipeline tests — slower and more suitable for
+  integration tests than unit tests.
+
+**Consequences:** Contributors must have the native dependencies required by
+`canvas` (on macOS, usually available via Xcode tools). The test setup file
+(`tests/setup.ts`) exposes `ImageData` globally and polyfills `URL.createObjectURL`
+where jsdom lacks it.

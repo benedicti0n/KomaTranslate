@@ -104,13 +104,44 @@ and calls `queue.updatePriorities(...)`. The queue:
 2. Skips fingerprints already completed this session.
 3. Schedules the highest-priority runnable job first.
 
+## Image pipeline
+
+The image pipeline lives in `@manga-translator/inference-core`:
+
+```text
+source <img> / URL / Blob
+         |
+         v
+    decodeImage()
+         |
+         v
+   ImageBitmap or HTMLImageElement
+         |
+         v
+   captureSourceImage() -> ImageData
+         |
+         v
+   resizeNormalize() -> CHW Float32Array
+```
+
+The pipeline is designed to release resources eagerly:
+
+- `withDecodedImage()` revokes object URLs and closes `ImageBitmap`s.
+- `releaseDecodedImage()` is the explicit cleanup path.
+- `estimateImageMemoryBytes()` is used to log memory-sensitive events.
+
 ## Overlay coordinate mapping
 
 Overlays are rendered into a closed Shadow DOM host element that is fixed at the
 viewport origin (`top: 0; left: 0`). Each overlay card is absolutely positioned
-using the candidate's `viewportRect`. In Phase 1 mock bubbles are rendered
-directly from the snapshot rect; Phase 2 will add source-to-overlay coordinate
-mapping that accounts for scroll, zoom, and responsive scaling.
+using the candidate's current rendered rect.
+
+`computeSourceToViewportMapping()` in inference-core computes the transform from
+source image pixels to rendered viewport pixels, accounting for CSS
+`object-fit` (`fill`, `contain`, `cover`, `none`) and `object-position`. The
+content script uses `sourceRectToViewportRect()` to map the full source image
+rect to the current viewport rect so the overlay stays aligned during scroll,
+zoom, and responsive layout changes.
 
 ## Cancellation behavior
 

@@ -5,6 +5,15 @@ import {
   type SiteAuthorization,
   normalizeOrigin,
 } from '@manga-translator/shared';
+import {
+  captureSourceImage,
+  computeSourceToViewportMapping,
+  decodeImage,
+  estimateImageMemoryBytes,
+  sourceRectToViewportRect,
+  releaseDecodedImage,
+  resizeNormalize,
+} from '@manga-translator/inference-core';
 import { createReaderSession, type PageCandidate } from '@manga-translator/reader-core';
 import {
   renderMockBubbleOverlay,
@@ -49,6 +58,27 @@ const renderStatusOverlay = (message: string): void => {
   });
 };
 
+const findElementForCandidate = (candidate: PageCandidate): HTMLImageElement | null => {
+  const element = document.querySelector(
+    `[data-manga-translator-id="${candidate.id}"]`,
+  );
+  return element instanceof HTMLImageElement ? element : null;
+};
+
+const computeCurrentViewportRect = (candidate: PageCandidate): DOMRectReadOnly => {
+  const element = findElementForCandidate(candidate);
+  if (element && element.naturalWidth > 0) {
+    const mapping = computeSourceToViewportMapping(element);
+    return sourceRectToViewportRect(mapping, {
+      x: 0,
+      y: 0,
+      width: element.naturalWidth,
+      height: element.naturalHeight,
+    });
+  }
+  return candidate.viewportRect;
+};
+
 const renderQueueOverlay = (): void => {
   if (!readerSession) return;
 
@@ -70,9 +100,9 @@ const renderQueueOverlay = (): void => {
       .has(candidate.fingerprint);
     bubbles.push({
       id: candidate.id,
-      viewportRect: candidate.viewportRect,
+      viewportRect: computeCurrentViewportRect(candidate),
       priority,
-      label: isCompleted ? `P${priority} · Ready` : `P${priority} · Translating…`,
+      label: isCompleted ? `P${priority} · Captured` : `P${priority} · Capturing…`,
     });
   };
 
@@ -88,40 +118,58 @@ const createSession = (): ReturnType<typeof createReaderSession> => {
   const session = createReaderSession({
     direction: 'vertical',
     processJob: async (job) => {
-      // Phase 1 simulation: pretend to decode, OCR, and translate the page.
-      const duration = 500 + Math.random() * 1000;
-      const startedAt = performance.now();
-      const interval = 25;
-      let elapsed = 0;
-
-      while (elapsed < duration) {
-        if (job.abortController.signal.aborted) {
-          throw new Error('Aborted');
-        }
-        await new Promise((resolve) => setTimeout(resolve, interval));
-        elapsed += interval;
+      const element = findElementForCandidate(job.candidate);
+      if (!element) {
+        throw new Error('Source element not found');
       }
 
-      return {
-        candidate: job.candidate,
-        priority: job.priority,
-        durationMs: performance.now() - startedAt,
-      };
+      const decoded = await decodeImage(element);
+      try {
+        const imageData = captureSourceImage(decoded);
+        const normalized = resizeNormalize(imageData, {
+          targetWidth: 640,
+          targetHeight: 640,
+          channels: 3,
+          normalize: true,
+          preserveAspect: true,
+        });
+
+        // Phase 2: we capture and normalize the image. In Phase 3 the normalized
+        // tensor will be passed to a text-detection / OCR model.
+        const memoryEstimate = estimateImageMemoryBytes(
+          decoded.naturalWidth,
+          decoded.naturalHeight,
+        );
+        log(
+          `P${job.priority} captured`,
+          job.candidate.fingerprint,
+          `${decoded.naturalWidth}x${decoded.naturalHeight}`,
+          `~${Math.round(memoryEstimate / 1024 / 1024)}MB`,
+        );
+
+        // Prevent the unused variable from being tree-shaken / flagged.
+        void normalized;
+
+        return {
+          candidate: job.candidate,
+          priority: job.priority,
+          durationMs: 0,
+        };
+      } finally {
+        releaseDecodedImage(decoded);
+      }
     },
     callbacks: {
       onJobStarted: (job) => {
-        log(`Started P${job.priority} job`, job.candidate.fingerprint);
+        log(`Started P${job.priority} capture`, job.candidate.fingerprint);
         renderQueueOverlay();
       },
-      onJobCompleted: (job, result) => {
-        log(
-          `Completed P${job.priority} job in ${Math.round(result.durationMs)}ms`,
-          job.candidate.fingerprint,
-        );
+      onJobCompleted: (job) => {
+        log(`Completed P${job.priority} capture`, job.candidate.fingerprint);
         renderQueueOverlay();
       },
       onJobCancelled: (job, reason) => {
-        log(`Cancelled P${job.priority} job: ${reason}`, job.candidate.fingerprint);
+        log(`Cancelled P${job.priority} capture: ${reason}`, job.candidate.fingerprint);
       },
     },
   });
@@ -133,7 +181,6 @@ const activateReader = (): void => {
   if (readerSession) return;
   readerSession = createSession();
   renderStatusOverlay('Discovering pages…');
-  // Give the adapter a moment to discover images before rendering the queue overlay.
   requestAnimationFrame(() => {
     renderQueueOverlay();
   });

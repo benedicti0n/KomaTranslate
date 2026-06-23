@@ -14,3 +14,8 @@ export {
   type MockBubbleCandidate,
   type MockBubbleOverlayOptions,
 } from './mockBubbleOverlay.js';
+export {
+  createLinearMapping,
+  mapSourceRectToViewport,
+  type CoordinateMapping,
+} from './coordinateMapping.js';

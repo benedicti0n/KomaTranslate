@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Object-Fit Reader Fixture</title>
+    <style>
+      body {
+        margin: 0;
+        background: #111;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 2rem 0;
+        gap: 2rem;
+      }
+      .page {
+        width: 80vw;
+        max-width: 600px;
+        height: 80vh;
+        background: #222;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      img {
+        width: 100%;
+        height: 100%;
+      }
+      .cover img { object-fit: cover; }
+      .contain img { object-fit: contain; }
+      .fill img { object-fit: fill; }
+    </style>
+  </head>
+  <body>
+    <div class="page cover">
+      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='1200'%3E%3Crect width='800' height='1200' fill='%23f5f5f5'/%3E%3Ctext x='400' y='600' text-anchor='middle' font-size='40' fill='%23333'%3ECover%3C/text%3E%3C/svg%3E" alt="Cover" />
+    </div>
+    <div class="page contain">
+      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='1200'%3E%3Crect width='800' height='1200' fill='%23e8e8e8'/%3E%3Ctext x='400' y='600' text-anchor='middle' font-size='40' fill='%23333'%3EContain%3C/text%3E%3C/svg%3E" alt="Contain" />
+    </div>
+    <div class="page fill">
+      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='1200'%3E%3Crect width='800' height='1200' fill='%23dcdcdc'/%3E%3Ctext x='400' y='600' text-anchor='middle' font-size='40' fill='%23333'%3EFill%3C/text%3E%3C/svg%3E" alt="Fill" />
+    </div>
+  </body>
+</html>
