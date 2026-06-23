@@ -44,3 +44,20 @@ export const originLabel = (origin: string): string => {
     return origin;
   }
 };
+
+/**
+ * Converts a normalized origin into a Chrome permission match pattern.
+ *
+ * Chrome's permission API requires origins to include a path, e.g.
+ * "https://example.com/*". A bare origin such as "https://example.com" is
+ * rejected with "Empty path".
+ */
+export const originToMatchPattern = (origin: string): string | null => {
+  try {
+    const parsed = new URL(origin);
+    // Match pattern origin must not include username, password, or pathname.
+    return `${parsed.protocol}//${parsed.host}/*`;
+  } catch {
+    return null;
+  }
+};

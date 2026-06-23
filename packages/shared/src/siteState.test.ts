@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeOrigin, originLabel } from './siteState.js';
+import { normalizeOrigin, originLabel, originToMatchPattern } from './siteState.js';
 
 describe('normalizeOrigin', () => {
   it('returns the origin for a valid HTTPS URL', () => {
@@ -28,5 +28,23 @@ describe('originLabel', () => {
 
   it('falls back to the raw input for an invalid origin', () => {
     expect(originLabel('invalid')).toBe('invalid');
+  });
+});
+
+describe('originToMatchPattern', () => {
+  it('appends a wildcard path to a valid origin', () => {
+    expect(originToMatchPattern('https://nhentai.net')).toBe('https://nhentai.net/*');
+  });
+
+  it('strips any trailing slash before appending wildcard', () => {
+    expect(originToMatchPattern('https://example.com/')).toBe('https://example.com/*');
+  });
+
+  it('preserves non-standard ports', () => {
+    expect(originToMatchPattern('http://localhost:3000')).toBe('http://localhost:3000/*');
+  });
+
+  it('returns null for invalid input', () => {
+    expect(originToMatchPattern('not a url')).toBeNull();
   });
 });

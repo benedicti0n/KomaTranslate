@@ -4,6 +4,7 @@ import {
   Ok,
   type SiteAuthorization,
   normalizeOrigin,
+  originToMatchPattern,
   EXTENSION_NAME,
 } from '@manga-translator/shared';
 import {
@@ -44,8 +45,13 @@ const handlers: BackgroundHandlerMap = {
       return Err('Invalid origin');
     }
 
+    const matchPattern = originToMatchPattern(normalized);
+    if (!matchPattern) {
+      return Err('Invalid match pattern');
+    }
+
     try {
-      const granted = await chrome.permissions.request({ origins: [normalized] });
+      const granted = await chrome.permissions.request({ origins: [matchPattern] });
       return Ok({ granted });
     } catch (error) {
       warn('Permission request failed', error);
@@ -59,9 +65,14 @@ const handlers: BackgroundHandlerMap = {
       return Err('Invalid origin');
     }
 
+    const matchPattern = originToMatchPattern(normalized);
+    if (!matchPattern) {
+      return Err('Invalid match pattern');
+    }
+
     try {
       // Optional host permission is requested first so the content script can run.
-      const granted = await chrome.permissions.request({ origins: [normalized] });
+      const granted = await chrome.permissions.request({ origins: [matchPattern] });
       if (!granted) {
         return Err('Permission denied by user');
       }
