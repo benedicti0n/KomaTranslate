@@ -6,7 +6,7 @@ export type {
   MetricsCallback,
 } from './imagePipeline/types.js';
 
-export { decodeImage, withDecodedImage } from './imagePipeline/decode.js';
+export { decodeImage, decodeImageCorsAware, withDecodedImage } from './imagePipeline/decode.js';
 export {
   getRenderedImageRect,
   computeSourceToViewportMapping,

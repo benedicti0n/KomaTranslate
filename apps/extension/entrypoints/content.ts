@@ -8,7 +8,7 @@ import {
 import {
   captureSourceImage,
   computeSourceToViewportMapping,
-  decodeImage,
+  decodeImageCorsAware,
   estimateImageMemoryBytes,
   sourceRectToViewportRect,
   releaseDecodedImage,
@@ -33,6 +33,7 @@ let unsubscribeBroadcast: (() => void) | null = null;
 let currentOrigin: Origin | null = null;
 let isActive = false;
 let readerSession: ReturnType<typeof createReaderSession> | null = null;
+const corsBlockedFingerprints = new Set<string>();
 
 const origin = (): Origin | null => {
   if (currentOrigin) return currentOrigin;
@@ -98,11 +99,20 @@ const renderQueueOverlay = (): void => {
     const isCompleted = readerSession?.queue
       .getCompletedFingerprints()
       .has(candidate.fingerprint);
+    const isCorsBlocked = corsBlockedFingerprints.has(candidate.fingerprint);
+
+    let label: string;
+    if (isCompleted) {
+      label = isCorsBlocked ? `P${priority} · Overlay only` : `P${priority} · Captured`;
+    } else {
+      label = `P${priority} · Capturing…`;
+    }
+
     bubbles.push({
       id: candidate.id,
       viewportRect: computeCurrentViewportRect(candidate),
       priority,
-      label: isCompleted ? `P${priority} · Captured` : `P${priority} · Capturing…`,
+      label,
     });
   };
 
@@ -123,7 +133,22 @@ const createSession = (): ReturnType<typeof createReaderSession> => {
         throw new Error('Source element not found');
       }
 
-      const decoded = await decodeImage(element);
+      // Try a CORS-aware decode so we can read pixels. If the image CDN does not
+      // send CORS headers, fall back to overlay-only rendering for this page.
+      const decoded = await decodeImageCorsAware(job.candidate.source);
+      if (!decoded) {
+        corsBlockedFingerprints.add(job.candidate.fingerprint);
+        log(
+          `P${job.priority} CORS-blocked, overlay only`,
+          job.candidate.fingerprint,
+        );
+        return {
+          candidate: job.candidate,
+          priority: job.priority,
+          durationMs: 0,
+        };
+      }
+
       try {
         const imageData = captureSourceImage(decoded);
         const normalized = resizeNormalize(imageData, {
@@ -179,6 +204,7 @@ const createSession = (): ReturnType<typeof createReaderSession> => {
 
 const activateReader = (): void => {
   if (readerSession) return;
+  corsBlockedFingerprints.clear();
   readerSession = createSession();
   renderStatusOverlay('Discovering pages…');
   requestAnimationFrame(() => {
@@ -189,6 +215,7 @@ const activateReader = (): void => {
 const deactivateReader = (): void => {
   readerSession?.destroy();
   readerSession = null;
+  corsBlockedFingerprints.clear();
   removeOverlay();
 };
 
