@@ -50,32 +50,45 @@ popup / content / offscreen
 
 ## Reader discovery flow
 
-Phase 0 does not perform real reader detection. The content script activates on
-enabled sites only and shows a diagnostic overlay.
-
-In Phase 1 the planned flow is:
+The content script loads on an enabled site and creates a `ReaderSession` from
+`@manga-translator/reader-core`:
 
 ```text
 content script loads on enabled site
          |
          v
-select a ReaderAdapter based on DOM heuristics
+createReaderSession()
          |
          v
-discover PageCandidate[] from DOM images
+detectReaderAdapter() -> DOM image adapter (Phase 1)
          |
          v
-subscribe to DOM mutations and viewport intersections
+adapter.discover() -> PageCandidate[] from visible <img> elements
+         |
+         v
+assignReadingOrder() -> sorted candidates by vertical/LTR/RTL direction
+         |
+         v
+createViewportTracker() -> IntersectionObserver on marked elements
          |
          v
 compute current page (closest to viewport center)
 compute next page (next in reading order)
 compute next-next page
+         |
+         v
+update page queue -> P0 / P1 / P2
 ```
+
+The DOM image adapter marks each discovered `<img>` with
+`data-manga-translator-id` so the viewport tracker can observe it without
+holding direct DOM references. It also resolves common lazy-loading attributes
+(`data-src`, `data-lazy-src`, `data-original`) before the image has loaded.
 
 ## Current-page and two-page prefetch queue
 
-The queue is bounded to three priorities:
+The queue is implemented in `packages/reader-core/src/pageQueue.ts` and is
+bounded to three priorities:
 
 - **P0** — current visible page.
 - **P1** — next page in reading order.
@@ -84,29 +97,37 @@ The queue is bounded to three priorities:
 All other pages are ignored until they enter the P0/P1/P2 window. This avoids
 OCR/translation of an entire chapter and keeps the visible page responsive.
 
+`ReaderSession` re-computes P0/P1/P2 on scroll, resize, and adapter mutations
+and calls `queue.updatePriorities(...)`. The queue:
+
+1. Cancels active jobs whose fingerprint is no longer in the window.
+2. Skips fingerprints already completed this session.
+3. Schedules the highest-priority runnable job first.
+
 ## Overlay coordinate mapping
 
 Overlays are rendered into a closed Shadow DOM host element that is fixed at the
 viewport origin (`top: 0; left: 0`). Each overlay card is absolutely positioned
-using coordinates mapped from the source image/page to viewport pixels. In Phase
-0 only a fixed diagnostic card is shown; coordinate mapping will be implemented
-in Phase 2.
+using the candidate's `viewportRect`. In Phase 1 mock bubbles are rendered
+directly from the snapshot rect; Phase 2 will add source-to-overlay coordinate
+mapping that accounts for scroll, zoom, and responsive scaling.
 
 ## Cancellation behavior
 
 Every queued page job carries its own `AbortController`. When the user scrolls,
-jumps, changes chapter, or disables the site, the background or content script
-aborts stale controllers and removes their overlays. Background message handlers
-also use try/catch so failures do not crash the service worker.
+jumps forward/backward, changes chapter, changes route, or disables the site,
+the content script calls `queue.updatePriorities(...)` or `queue.destroy()`,
+which aborts stale controllers. Jobs aborted before they start trigger the
+`onJobCancelled` callback immediately and are removed from the active set.
 
 ## Caching strategy
 
-Phase 0 caches only the enabled-sites list and user settings in
-`chrome.storage.sync`.
+- **Persistent**: enabled-sites list and user settings in `chrome.storage.sync`.
+- **Session**: completed page fingerprints in `PageQueue` so the same page is
+  never processed twice during the same browsing session.
 
-Phase 1 will add an in-memory session cache keyed by page fingerprint so the
-same page is never processed twice during the same browsing session. Later
-phases may cache OCR/translation results locally, but no data leaves the browser.
+Later phases may cache OCR/translation results locally, but no data leaves the
+browser.
 
 ## Model-loading strategy
 

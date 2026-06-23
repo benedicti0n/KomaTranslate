@@ -100,3 +100,25 @@ messaging, storage, build pipeline, and overlay injection.
 **Consequences:** Phase 0 is not a usable translation product yet. Phase 1 and
 Phase 2 will add reader discovery and image pipeline; Phase 3 and Phase 4 will
 benchmark and select models before integration in Phase 5.
+
+---
+
+## 2026-06-23 — Use element IDs for DOM tracking and fingerprints for session cache
+
+**Decision:** `PageCandidate` carries both a unique `id` (DOM element instance)
+and a stable `fingerprint` (page asset identity). The viewport tracker observes
+elements by `id`, while the page queue caches results by `fingerprint`.
+
+**Reason:** A single manga page asset may theoretically appear in the DOM more
+than once during route changes, and DOM element references are not stable across
+mutations. Separating identity from DOM tracking lets us cancel stale element
+jobs while still deduplicating the same page asset in the session cache.
+
+**Alternatives considered:**
+
+- Use only fingerprints for both — would break if two elements shared a source.
+- Use only DOM element references — unstable across mutations and hard to cache.
+
+**Consequences:** The adapter must mark elements and the tracker must query by
+`data-manga-translator-id`. Future adapters must produce unique element IDs and
+stable fingerprints independently.

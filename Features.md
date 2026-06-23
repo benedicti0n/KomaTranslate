@@ -23,22 +23,23 @@ All processing happens locally in the browser.
 - Shadow DOM overlay root with isolated styles and cleanup.
 - Vitest unit tests for shared contracts and overlay lifecycle.
 
+### Phase 1 — Reader Discovery and Page Queue
+
+- Reader page discovery abstraction with `ReaderAdapter` interface.
+- DOM image-based reader adapter with `MutationObserver` subscription.
+- `IntersectionObserver` viewport tracker with viewport-center current-page selection.
+- Reading-order inference for vertical, LTR, and RTL layouts.
+- Strict P0/P1/P2 priority queue with `AbortController` cancellation.
+- Session cache keyed by page fingerprint to prevent duplicate work.
+- Simulated decode/OCR/translation work per page.
+- Mock translation bubble overlays rendered over P0/P1/P2 pages.
+- Fixture reader pages (vertical, paged, lazy-loaded) and automated tests.
+
 ## In Progress
 
 None.
 
 ## Planned
-
-### Phase 1 — Reader Discovery and Page Queue
-
-- Reader page discovery abstraction.
-- DOM image-based reader adapter.
-- MutationObserver for dynamic readers.
-- IntersectionObserver and viewport-center tracking.
-- Strict P0/P1/P2 priority queue with cancellation.
-- Session cache keyed by page fingerprint.
-- Mock translation bubble overlays to prove ordering.
-- Fixture readers and automated tests.
 
 ### Phase 2 — Image Pipeline and Page Capture
 
@@ -98,9 +99,10 @@ None.
 2. Open a manga-reader website.
 3. Click the extension icon and choose **Enable automatic translation**.
 4. Chrome asks for permission for that specific site.
-5. The page reloads/injects the content script and a diagnostic overlay appears.
-6. In Phase 0 the overlay is only a proof-of-injection card. Real translation
-   begins in Phase 5.
+5. The page reloads/injects the content script.
+6. In Phase 1 the extension discovers manga page images, tracks the current
+   page, and renders mock "P0/P1/P2" translation bubble overlays to prove the
+   discovery and queue ordering. Real OCR/translation begins in Phase 5.
 7. The user can disable the site at any time from the popup or options page.
 
 ## Technical Notes

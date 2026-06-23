@@ -8,3 +8,9 @@
 export type { OverlayRoot, DiagnosticOverlayOptions } from './types.js';
 export { createOverlayRoot, removeOverlayRoot } from './overlayRoot.js';
 export { showDiagnosticOverlay, removeDiagnosticOverlay } from './diagnosticOverlay.js';
+export {
+  renderMockBubbleOverlay,
+  removeMockBubbleOverlay,
+  type MockBubbleCandidate,
+  type MockBubbleOverlayOptions,
+} from './mockBubbleOverlay.js';

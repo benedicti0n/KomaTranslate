@@ -6,4 +6,9 @@
  */
 
 export type { ReaderAdapter, PageCandidate, PageQueueJob } from './types.js';
-export { createDomImageAdapter } from './domImageAdapter.js';
+export { createDomImageAdapter } from './adapters/domImageAdapter.js';
+export { createReaderSession } from './readerSession.js';
+export { createPageQueue, createSimulatedProcessor } from './pageQueue.js';
+export { createViewportTracker } from './viewportTracker.js';
+export { assignReadingOrder, sortByReadingOrder } from './readingOrder.js';
+export { createPageFingerprint } from './pageFingerprint.js';

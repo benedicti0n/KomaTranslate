@@ -70,5 +70,13 @@ Phase 0 covers:
 
 - `Result<T, E>` helpers.
 - Cross-context message envelope building and validation.
-- `normalizeOrigin` and `originLabel` helpers.
+- `normalizeOrigin`, `originLabel`, and `originToMatchPattern` helpers.
 - Shadow DOM overlay root mount/destroy lifecycle.
+
+Phase 1 adds:
+
+- DOM image adapter discovery and `MutationObserver` subscription.
+- Page fingerprint stripping of query parameters.
+- Reading-order sorting for vertical, LTR, and RTL directions.
+- P0/P1/P2 priority queue ordering, cancellation, and session-cache deduplication.
+- Fixture reader pages in `tests/fixtures/`.

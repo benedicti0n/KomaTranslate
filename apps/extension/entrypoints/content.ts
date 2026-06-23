@@ -5,7 +5,13 @@ import {
   type SiteAuthorization,
   normalizeOrigin,
 } from '@manga-translator/shared';
-import { showDiagnosticOverlay, removeDiagnosticOverlay } from '@manga-translator/overlay-core';
+import { createReaderSession, type PageCandidate } from '@manga-translator/reader-core';
+import {
+  renderMockBubbleOverlay,
+  removeMockBubbleOverlay,
+  showDiagnosticOverlay,
+  removeDiagnosticOverlay,
+} from '@manga-translator/overlay-core';
 import { onBroadcast, sendMessage } from '../utils/messaging.js';
 
 const log = (...args: unknown[]): void => {
@@ -17,20 +23,12 @@ let cleanupOverlay: (() => void) | null = null;
 let unsubscribeBroadcast: (() => void) | null = null;
 let currentOrigin: Origin | null = null;
 let isActive = false;
+let readerSession: ReturnType<typeof createReaderSession> | null = null;
 
 const origin = (): Origin | null => {
   if (currentOrigin) return currentOrigin;
   currentOrigin = normalizeOrigin(location.href);
   return currentOrigin;
-};
-
-const injectDiagnosticOverlay = (reason: string): void => {
-  removeOverlay();
-  cleanupOverlay = showDiagnosticOverlay({
-    label: `${EXTENSION_NAME} active — ${reason}`,
-    backgroundColor: '#ffffff',
-  });
-  log('Diagnostic overlay injected', reason);
 };
 
 const removeOverlay = (): void => {
@@ -39,7 +37,112 @@ const removeOverlay = (): void => {
     cleanupOverlay = null;
   } else {
     removeDiagnosticOverlay();
+    removeMockBubbleOverlay();
   }
+};
+
+const renderStatusOverlay = (message: string): void => {
+  removeOverlay();
+  cleanupOverlay = showDiagnosticOverlay({
+    label: `${EXTENSION_NAME} — ${message}`,
+    backgroundColor: '#ffffff',
+  });
+};
+
+const renderQueueOverlay = (): void => {
+  if (!readerSession) return;
+
+  const current = readerSession.getCurrentPage();
+  const next = readerSession.getNextPage();
+  const nextNext = readerSession.getNextNextPage();
+
+  const bubbles: Array<{
+    id: string;
+    viewportRect: DOMRectReadOnly;
+    priority: 0 | 1 | 2;
+    label?: string;
+  }> = [];
+
+  const addBubble = (candidate: PageCandidate | null, priority: 0 | 1 | 2): void => {
+    if (!candidate) return;
+    const isCompleted = readerSession?.queue
+      .getCompletedFingerprints()
+      .has(candidate.fingerprint);
+    bubbles.push({
+      id: candidate.id,
+      viewportRect: candidate.viewportRect,
+      priority,
+      label: isCompleted ? `P${priority} · Ready` : `P${priority} · Translating…`,
+    });
+  };
+
+  addBubble(current, 0);
+  addBubble(next, 1);
+  addBubble(nextNext, 2);
+
+  removeMockBubbleOverlay();
+  cleanupOverlay = renderMockBubbleOverlay({ candidates: bubbles });
+};
+
+const createSession = (): ReturnType<typeof createReaderSession> => {
+  const session = createReaderSession({
+    direction: 'vertical',
+    processJob: async (job) => {
+      // Phase 1 simulation: pretend to decode, OCR, and translate the page.
+      const duration = 500 + Math.random() * 1000;
+      const startedAt = performance.now();
+      const interval = 25;
+      let elapsed = 0;
+
+      while (elapsed < duration) {
+        if (job.abortController.signal.aborted) {
+          throw new Error('Aborted');
+        }
+        await new Promise((resolve) => setTimeout(resolve, interval));
+        elapsed += interval;
+      }
+
+      return {
+        candidate: job.candidate,
+        priority: job.priority,
+        durationMs: performance.now() - startedAt,
+      };
+    },
+    callbacks: {
+      onJobStarted: (job) => {
+        log(`Started P${job.priority} job`, job.candidate.fingerprint);
+        renderQueueOverlay();
+      },
+      onJobCompleted: (job, result) => {
+        log(
+          `Completed P${job.priority} job in ${Math.round(result.durationMs)}ms`,
+          job.candidate.fingerprint,
+        );
+        renderQueueOverlay();
+      },
+      onJobCancelled: (job, reason) => {
+        log(`Cancelled P${job.priority} job: ${reason}`, job.candidate.fingerprint);
+      },
+    },
+  });
+
+  return session;
+};
+
+const activateReader = (): void => {
+  if (readerSession) return;
+  readerSession = createSession();
+  renderStatusOverlay('Discovering pages…');
+  // Give the adapter a moment to discover images before rendering the queue overlay.
+  requestAnimationFrame(() => {
+    renderQueueOverlay();
+  });
+};
+
+const deactivateReader = (): void => {
+  readerSession?.destroy();
+  readerSession = null;
+  removeOverlay();
 };
 
 const activateIfEnabled = async (): Promise<void> => {
@@ -47,7 +150,7 @@ const activateIfEnabled = async (): Promise<void> => {
   if (!siteOrigin) return;
 
   const result = await sendMessage('content:ready', {
-    tabId: -1, // Background resolves tab from sender, so this is ignored.
+    tabId: -1,
     origin: siteOrigin,
   });
 
@@ -56,20 +159,19 @@ const activateIfEnabled = async (): Promise<void> => {
     return;
   }
 
-  const { siteStatus } = result.value;
-  applyAuthorization(siteStatus);
+  applyAuthorization(result.value.siteStatus);
 };
 
 const applyAuthorization = (authorization: SiteAuthorization): void => {
   if (authorization.status === 'enabled') {
     if (!isActive) {
       isActive = true;
-      injectDiagnosticOverlay(authorization.origin);
+      activateReader();
     }
   } else {
     if (isActive) {
       isActive = false;
-      removeOverlay();
+      deactivateReader();
     }
   }
 };
@@ -77,7 +179,6 @@ const applyAuthorization = (authorization: SiteAuthorization): void => {
 const init = (): void => {
   log('Content script initialized for', location.href);
 
-  // Listen for background authorization changes.
   unsubscribeBroadcast = onBroadcast('broadcast:siteStatusChanged', ({ origin: changedOrigin }) => {
     const siteOrigin = origin();
     if (siteOrigin && changedOrigin === siteOrigin) {
@@ -85,12 +186,12 @@ const init = (): void => {
     }
   });
 
-  // React to history/route changes in single-page readers.
   const originalPushState = history.pushState.bind(history);
   const originalReplaceState = history.replaceState.bind(history);
 
   const onRouteChanged = (): void => {
     currentOrigin = null;
+    deactivateReader();
     void activateIfEnabled();
   };
 
@@ -113,7 +214,7 @@ const init = (): void => {
 export const teardownContentScript = (): void => {
   unsubscribeBroadcast?.();
   unsubscribeBroadcast = null;
-  removeOverlay();
+  deactivateReader();
 };
 
 export default defineContentScript({
